@@ -15,19 +15,41 @@ namespace RS.FileManager
     {
         private List<string> _disks;
         private List<Button> _disksBtn;
+        private MyFileManager _fm;
+        private ImageList imgs;
 
         public Form1()
         {
             InitializeComponent();
+            imgs = new ImageList();
+            imgs.ImageSize = new Size(32, 32);
+            FMListView.LargeImageList = imgs;
+            Icon folderIcon = IconExtractor.Extract(@"%SYSTEMROOT%\System32\Shell32.dll",4,true);
+            imgs.Images.Add(folderIcon);
+
             _disksBtn = new List<Button>();
             UpdateDisks();
-            //UpdateFileIerarchy(_disks.FirstOrDefault());
+            _fm = new MyFileManager(_disks.FirstOrDefault());
+            UpdateFileIerarchy();
+
         }
+
+
 
 
         private void CopyBtn_Click(object sender, EventArgs e)
         {
+            IFMEntity entity;
+            string selected = FMTree.SelectedNode.Text;
+            if (File.Exists(_fm.Path+selected))
+            {
+                entity = new FMFile(_fm.Path, selected);
+            } else
+            {
+                entity = new FMFolder(_fm.Path, selected);
+            }
 
+            _fm.Execute(new FMCopyCommand(entity, _fm.Path, "Копия " + selected));
         }
 
         private void UpdateDisks()
@@ -80,7 +102,8 @@ namespace RS.FileManager
 
         private void Result_Click(object sender, EventArgs e)
         {
-            UpdateFileIerarchy(((Button)sender).Text);
+            _fm.Path = ((Button)sender).Text;
+            UpdateFileIerarchy();
         }
 
         private void DeleteDiskButton(Button diskBtn)
@@ -91,24 +114,77 @@ namespace RS.FileManager
             }  
         }
 
-        private void UpdateFileIerarchy(string rootPath)
+        private void UpdateFileIerarchy()
         {
             FMTree.Nodes.Clear();
-            var entries = Directory.GetFileSystemEntries(rootPath);
-
-
-            FMTree.Nodes.Add(rootPath);
-
-            foreach (var entry in entries)
+            FMListView.Items.Clear();
+            textBoxPath.Text = _fm.Path;
+            FMTree.Nodes.Add(_fm.Path);
+            foreach (var entity in _fm.FilesAndFolders)
             {
-                FMTree.Nodes[0].Nodes.Add(entry.Substring(rootPath.Length-1));
+                FMTree.Nodes[0].Nodes.Add(entity.Name);
+                if(entity is FMFile)
+                {
+                    imgs.Images.Add(System.Drawing.Icon.ExtractAssociatedIcon(entity.Path));
+                    FMListView.Items.Add(entity.Name, imgs.Images.Count - 1);
+                } else
+                {
+                    FMListView.Items.Add(entity.Name, 0);
+                }
+                
+                
+
             }
-           
         }
+
 
         private void UpdateDisksBtn_Click(object sender, EventArgs e)
         {
             UpdateDisks();
+        }
+
+        private void searchMask_KeyUp(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                
+                var test = _fm.Search(_fm.Path, searchMask.Text);
+                foreach(var item in test)
+                {
+                    searchResult.Items.Add(new ListViewItem(item));
+                }
+            }
+        }
+
+        private void FMTree_DoubleClick(object sender, EventArgs e)
+        {
+            var clickedPath = FMTree.Nodes[0].Text + FMTree.SelectedNode.Text+"\\";
+            if (Directory.Exists(clickedPath))
+            {
+                _fm = new MyFileManager(clickedPath);
+                UpdateFileIerarchy();
+            }
+        }
+
+        private void dataGridView1_CellContentClick(object sender, DataGridViewCellEventArgs e)
+        {
+
+        }
+
+        private void textBoxPath_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                if (Directory.Exists(textBoxPath.Text))
+                {
+                    _fm.Path = textBoxPath.Text;
+                    UpdateFileIerarchy();
+                }else
+                {
+                    MessageBox.Show("Путь не найден");
+                }
+                
+            }
         }
     }
 }
